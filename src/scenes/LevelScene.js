@@ -14,6 +14,8 @@ export class LevelScene extends Phaser.Scene {
         this.respondido = false;
     }
 
+    preload() {}
+
     async create() {
         const fase = await LevelService.getFaseById(this.levelId);
 
