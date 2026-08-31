@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { LevelService } from '../services/LevelService';
 import { Theme } from '../config/Theme';
-import { ErrorPopup } from '../ui/ErrorPopup';
+import { ErrorToast } from '../ui/ErrorToast';
 
 export class LevelScene extends Phaser.Scene {
     constructor() {
@@ -14,13 +14,13 @@ export class LevelScene extends Phaser.Scene {
         this.respondido = false;
     }
 
-    preload() {}
+    preload() { }
 
     async create() {
         const fase = await LevelService.getFaseById(this.levelId);
 
         if (!fase) {
-            new ErrorPopup(this, 'Erro ao carregar a fase. Tente novamente.');
+            new ErrorToast(this, 'Erro ao carregar a fase. Tente novamente.');
             return;
         }
 
@@ -44,11 +44,11 @@ export class LevelScene extends Phaser.Scene {
     }
 
     criarOpcoes() {
-        const startY = this.scale.height * 0.4;
+        const inicioY = this.scale.height * 0.4;
         const espacamento = 80;
 
         this.botoesOpcoes = (this.fase.opcoes || []).map((opcao, index) => {
-            const y = startY + index * espacamento;
+            const y = inicioY + index * espacamento;
 
             const texto = this.add.text(
                 this.centroX,
@@ -76,16 +76,14 @@ export class LevelScene extends Phaser.Scene {
         if (this.respondido) return;
         this.respondido = true;
 
-        const cor = opcao.ehCorreta ? Theme.colors.hex.success : Theme.colors.hex.error;
         textoObj.setStyle({ backgroundColor: opcao.ehCorreta ? Theme.colors.string.success : Theme.colors.string.error });
-
+        
         const style = opcao.ehCorreta ? Theme.textStyles.feedbackSuccess : Theme.textStyles.feedbackError;
         this.add.text(960, 750, opcao.ehCorreta ? 'Resposta correta!' : 'Resposta incorreta.', style).setOrigin(0.5);
-
         this.botoesOpcoes.forEach(btn => btn.disableInteractive());
 
         if (opcao.ehCorreta) {
-            const estrelas = 3; 
+            const estrelas = 3;
             LevelService.finalizarFase(this.levelId, estrelas);
         }
     }

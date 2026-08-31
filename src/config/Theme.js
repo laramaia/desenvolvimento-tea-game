@@ -121,17 +121,6 @@ export const Theme = {
         },
     },
 
-    popup: {
-        widthRatio: 0.5,
-        heightRatio: 0.05,
-        radius: 16,
-        bgColor: PALETTE.hex.white,
-        borderColor: 0x999999,
-        borderWidth: 3,
-        textColor: PALETTE.string.error,
-        fontSize: FONTS.size.sm,
-    },
-
     levelNode: {
         heightRatio: 0.22,
         hoverMultiplier: 1.05,
@@ -171,4 +160,14 @@ export const Theme = {
             paddingY: 4,
         },
     },
+
+    toast: {
+        iconScale: 0.5,
+        paddingX: 24,
+        paddingY: 16,
+        gapIconeTextos: 14,
+        bgColor: 0x203B6E, 
+        scaleMin: 0.1,
+        scaleMax: 1.05,
+    }
 };
