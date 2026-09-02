@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:5055/api';
+const BASE_URL = 'http://localhost:5000/api';
 const TIMEOUT_MS = 5000;
 
 export class ApiClient {

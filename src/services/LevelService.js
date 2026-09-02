@@ -83,6 +83,21 @@ export class LevelService {
     }
   }
 
+  static async getPerguntasByFaseId(faseId) {
+    if (!GameState.pacienteId) return [];
+
+    try {
+      const resposta = await ApiClient.get(
+        `/Jogo/iniciar/${GameState.pacienteId}/${faseId}`
+      );
+
+      return resposta.perguntas ?? [];
+    } catch (error) {
+      console.warn('Não foi possível buscar as perguntas da fase.', error);
+      return [];
+    }
+  }
+
   static salvarCache(key, dados) {
     try {
       localStorage.setItem(key, JSON.stringify(dados));
