@@ -30,10 +30,13 @@ export class LevelService {
   }
 
   static async getProgresso() {
-    if (!GameState.pacienteId) return []; // sem paciente vinculado, ninguém desbloqueou nada ainda
+    if (!GameState.pacienteId) return [];
 
     try {
-      const resposta = await ApiClient.get(`/Jogo/progresso/paciente/${GameState.pacienteId}`);
+      const resposta = await ApiClient.get(
+        `/Jogo/progresso/paciente/${GameState.pacienteId}`
+      );
+
       return resposta.historicoFases ?? [];
     } catch (error) {
       console.warn('Não foi possível buscar progresso do paciente.', error);
@@ -43,7 +46,9 @@ export class LevelService {
 
   static mapearParaLevelNodes(fases, progresso) {
     const fasesOrdenadas = [...fases].sort((a, b) => a.ordem - b.ordem);
-    const idsCompletados = new Set(progresso.map(p => p.faseId));
+    const idsCompletados = new Set(
+      progresso.map(p => p.faseId)
+    );
 
     let primeiraNaoCompletadaEncontrada = false;
 
@@ -70,21 +75,44 @@ export class LevelService {
 
   static async getFaseById(id) {
     const fasesCache = this.lerCache(CACHE_KEY_FASES);
-    const fase = fasesCache.find(f => f.faseId === id);
-    if (fase) return fase;
+
+    const fase = fasesCache.find(
+      f => f.faseId === id
+    );
+
+    if (fase) {
+      return fase;
+    }
 
     try {
       const fases = await ApiClient.get('/Fase/listar');
-      this.salvarCache(CACHE_KEY_FASES, fases);
-      return fases.find(f => f.faseId === id) ?? null;
+
+      this.salvarCache(
+        CACHE_KEY_FASES,
+        fases
+      );
+
+      return fases.find(
+        f => f.faseId === id
+      ) ?? null;
     } catch (error) {
-      console.warn('Não foi possível buscar a fase.', error);
+      console.warn(
+        'Não foi possível buscar a fase.',
+        error
+      );
+
       return null;
     }
   }
 
   static async getPerguntasByFaseId(faseId) {
-    if (!GameState.pacienteId) return [];
+    if (!GameState.pacienteId) {
+      console.warn(
+        'Sem pacienteId para iniciar a fase.'
+      );
+
+      return [];
+    }
 
     try {
       const resposta = await ApiClient.get(
@@ -93,43 +121,69 @@ export class LevelService {
 
       return resposta.perguntas ?? [];
     } catch (error) {
-      console.warn('Não foi possível buscar as perguntas da fase.', error);
+      console.warn(
+        'Não foi possível buscar as perguntas da fase.',
+        error
+      );
+
       return [];
     }
   }
 
   static salvarCache(key, dados) {
     try {
-      localStorage.setItem(key, JSON.stringify(dados));
+      localStorage.setItem(
+        key,
+        JSON.stringify(dados)
+      );
     } catch (error) {
-      console.warn('Não foi possível salvar o cache local.', error);
+      console.warn(
+        'Não foi possível salvar o cache local.',
+        error
+      );
     }
   }
 
   static lerCache(key) {
     try {
       const cache = localStorage.getItem(key);
-      return cache ? JSON.parse(cache) : [];
+
+      return cache
+        ? JSON.parse(cache)
+        : [];
     } catch (error) {
-      console.warn('Cache local corrompido, retornando vazio.', error);
+      console.warn(
+        'Cache local corrompido, retornando vazio.',
+        error
+      );
+
       return [];
     }
   }
 
   static async finalizarFase(faseId, estrelasGanhas) {
     if (!GameState.pacienteId) {
-      console.warn('Sem pacienteId — progresso não será salvo.');
+      console.warn(
+        'Sem pacienteId — progresso não será salvo.'
+      );
+
       return;
     }
 
     try {
-      await ApiClient.post('/Jogo/finalizar', {
-        pacienteId: GameState.pacienteId,
-        faseId,
-        estrelasGanhas,
-      });
+      await ApiClient.post(
+        '/Jogo/finalizar',
+        {
+          pacienteId: GameState.pacienteId,
+          faseId,
+          estrelasGanhas,
+        }
+      );
     } catch (error) {
-      console.warn('Não foi possível salvar o progresso.', error);
+      console.warn(
+        'Não foi possível salvar o progresso.',
+        error
+      );
     }
   }
 }
