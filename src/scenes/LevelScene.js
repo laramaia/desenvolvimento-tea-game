@@ -10,50 +10,64 @@ export class LevelScene extends Phaser.Scene {
 
     init(data) {
         this.levelId = data.levelId;
-        this.opcaoSelecionada = null;
+        this.currentPerguntaIndex = 0;
         this.respondido = false;
+        this.botoesOpcoes = [];
+        this.elementosTela = []; 
     }
-
-    preload() { }
 
     async create() {
         const fase = await LevelService.getFaseById(this.levelId);
 
-        if (!fase) {
-            new ErrorToast(this, 'Erro ao carregar a fase. Tente novamente.');
+        if (!fase || !fase.perguntas || fase.perguntas.length === 0) {
+            new ErrorToast(this, 'Erro ao carregar as perguntas da fase. Tente novamente.');
             return;
         }
 
         this.fase = fase;
         this.centroX = this.scale.width / 2;
-        this.criarEnunciado();
-        this.criarOpcoes();
+        
         this.criarBotaoVoltar();
+        this.carregarPerguntaAtual();
     }
 
-    criarEnunciado() {
-        this.add.text(
+    carregarPerguntaAtual() {
+        this.elementosTela.forEach(el => el.destroy());
+        this.elementosTela = [];
+        this.botoesOpcoes = [];
+        this.respondido = false;
+
+        const perguntaAtual = this.fase.perguntas[this.currentPerguntaIndex];
+
+        const txtProgresso = this.add.text(
             this.centroX,
-            this.scale.height * 0.2,
-            this.fase.enunciado,
+            this.scale.height * 0.12,
+            `Pergunta ${this.currentPerguntaIndex + 1} de ${this.fase.perguntas.length}`,
+            { ...Theme.textStyles.subtitle, color: '#a5a1ff' }
+        ).setOrigin(0.5).setDepth(10);
+        this.elementosTela.push(txtProgresso);
+
+        const txtEnunciado = this.add.text(
+            this.centroX,
+            this.scale.height * 0.23,
+            perguntaAtual.enunciado,
             {
                 ...Theme.textStyles.title,
                 wordWrap: { width: Math.min(1200, this.scale.width * 0.8) }
             }
         ).setOrigin(0.5).setDepth(10);
-    }
+        this.elementosTela.push(txtEnunciado);
 
-    criarOpcoes() {
-        const inicioY = this.scale.height * 0.4;
-        const espacamento = 80;
+        const inicioY = this.scale.height * 0.42;
+        const espacamento = 85;
 
-        this.botoesOpcoes = (this.fase.opcoes || []).map((opcao, index) => {
+        this.botoesOpcoes = (perguntaAtual.opcoes || []).map((opcao, index) => {
             const y = inicioY + index * espacamento;
 
             const texto = this.add.text(
                 this.centroX,
                 y,
-                opcao.texto,
+                opcao.texto ?? opcao.Texto,
                 Theme.textStyles.optionButton
             )
                 .setOrigin(0.5)
@@ -68,6 +82,7 @@ export class LevelScene extends Phaser.Scene {
                 if (!this.respondido) texto.setStyle({ backgroundColor: Theme.colors.string.primary });
             });
 
+            this.elementosTela.push(texto);
             return texto;
         });
     }
@@ -76,16 +91,34 @@ export class LevelScene extends Phaser.Scene {
         if (this.respondido) return;
         this.respondido = true;
 
-        textoObj.setStyle({ backgroundColor: opcao.ehCorreta ? Theme.colors.string.success : Theme.colors.string.error });
+        const ehCorreta = opcao.ehCorreta ?? opcao.EhCorreta;
+
+        textoObj.setStyle({ backgroundColor: ehCorreta ? Theme.colors.string.success : Theme.colors.string.error });
         
-        const style = opcao.ehCorreta ? Theme.textStyles.feedbackSuccess : Theme.textStyles.feedbackError;
-        this.add.text(960, 750, opcao.ehCorreta ? 'Resposta correta!' : 'Resposta incorreta.', style).setOrigin(0.5);
+        const style = ehCorreta ? Theme.textStyles.feedbackSuccess : Theme.textStyles.feedbackError;
+        const txtFeedback = this.add.text(
+            this.centroX, 
+            this.scale.height * 0.78, 
+            ehCorreta ? 'Resposta correta!' : 'Resposta incorreta.', 
+            style
+        ).setOrigin(0.5).setDepth(15);
+        this.elementosTela.push(txtFeedback);
+
         this.botoesOpcoes.forEach(btn => btn.disableInteractive());
 
-        if (opcao.ehCorreta) {
-            const estrelas = 3;
-            LevelService.finalizarFase(this.levelId, estrelas);
-        }
+        this.time.delayedCall(1500, () => {
+            if (ehCorreta) {
+                if (this.currentPerguntaIndex < this.fase.perguntas.length - 1) {
+                    this.currentPerguntaIndex++;
+                    this.carregarPerguntaAtual();
+                } else {
+                    LevelService.finalizarFase(this.levelId, 3);
+                    this.scene.start('MapScene');
+                }
+            } else {
+                this.carregarPerguntaAtual();
+            }
+        });
     }
 
     criarBotaoVoltar() {
