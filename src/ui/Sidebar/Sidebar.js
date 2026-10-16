@@ -2,9 +2,14 @@ import Phaser from 'phaser';
 import { Theme } from '../../config/Theme';
 import { SidebarButton } from './SidebarButton';
 
+const ROTAS = {
+    Jornada: 'MapScene',
+    Recompensas: 'RewardsScene',
+};
 export class Sidebar {
-    constructor(scene) {
+    constructor(scene, acoes = {}) {
         this.scene = scene;
+        this.acoes = acoes;
         this.container = this.scene.add.container(0, 0);
         this.botoes = [];
 
@@ -47,11 +52,22 @@ export class Sidebar {
 
     criarBotoes() {
         const nomesBotoes = ['Jornada', 'Recompensas', 'Configurações', 'Sair'];
+        const cenaAtual = this.scene.scene.key;
 
         nomesBotoes.forEach((nome) => {
+            const rota = ROTAS[nome];
+            const ativo = rota === cenaAtual;
+
             const btn = new SidebarButton(this.scene, 0, 0, nome, () => {
-                console.log(`Clicou no botão: ${nome}`);
-            });
+                if (this.acoes[nome]) {
+                    this.acoes[nome]();
+                } else if (rota && rota !== cenaAtual) {
+                    this.scene.scene.start(rota);
+                } else if (!rota) {
+                    console.log(`Clicou no botão: ${nome}`);
+                }
+            }, ativo);
+
             this.container.add(btn);
             this.botoes.push(btn);
         });

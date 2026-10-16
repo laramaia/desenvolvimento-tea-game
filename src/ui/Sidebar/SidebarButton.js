@@ -2,11 +2,13 @@ import Phaser from 'phaser';
 import { Theme } from '../../config/Theme';
 
 export class SidebarButton extends Phaser.GameObjects.Container {
-    constructor(scene, x, y, texto, onClick = null) {
+    constructor(scene, x, y, texto, onClick = null, ativo = false) {
         super(scene, x, y);
         this.scene = scene;
         this.textoConteudo = texto;
         this.onClick = onClick;
+        this.corFundo = ativo ? Theme.colors.hex.primaryHover : Theme.colors.hex.primaryDark;
+        this.corHover = Theme.colors.hex.primaryHover;
 
         this.fundo = this.scene.add.graphics();
         this.texto = this.scene.add.text(0, 0, this.textoConteudo, Theme.textStyles.button).setOrigin(0.5);

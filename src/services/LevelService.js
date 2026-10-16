@@ -104,6 +104,9 @@ export class LevelService {
       return null;
     }
   }
+  static async getResumoProgresso() {
+    return { historicoFases: await this.getProgresso() };
+}
 
   static async getPerguntasByFaseId(faseId) {
     if (!GameState.pacienteId) {

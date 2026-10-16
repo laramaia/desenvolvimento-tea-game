@@ -4,6 +4,8 @@ import { MapScene } from './scenes/MapScene';
 import { LevelScene } from './scenes/LevelScene';
 import { GameState } from './state/GameState';
 import { Theme } from './config/Theme';
+import { RewardsScene } from './scenes/RewardsScene';
+
 
 GameState.init();
 
@@ -19,7 +21,7 @@ const config = {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    scene: [MapScene, LevelScene]
+    scene: [MapScene, LevelScene, RewardsScene]
 };
 
 new Phaser.Game(config);

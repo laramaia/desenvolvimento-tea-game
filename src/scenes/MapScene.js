@@ -7,8 +7,11 @@ import { ErrorToast } from '../ui/ErrorToast';
 import { CoinCounter } from '../ui/CoinCounter';
 import { MapHeader } from '../ui/MapHeader';
 import { MapToast } from '../ui/MapToast';
+import {AvatarState} from "../state/AvatarState";
 
 export class MapScene extends Phaser.Scene {
+
+    
     constructor() {
         super({ key: 'MapScene' });
     }
@@ -86,8 +89,13 @@ export class MapScene extends Phaser.Scene {
         window.addEventListener('resize', aoRedimensionar);
 
         this.events.once('shutdown', () => {
-            window.removeEventListener('resize', aoRedimensionar);
-        });
+        window.removeEventListener('resize', aoRedimensionar);
+        this.scale.off('resize', this.redimensionarCena, this);
+         });
+
+        const estrelas = await AvatarState.getEstrelas();
+        this.coinCounter.atualizar(AvatarState.moedas(estrelas, AvatarState.carregar()));
+        this.redimensionarCena(this.scale.gameSize);
     }
 
     calcularPosicaoNode(fase, tamanhoJogo) {
@@ -101,6 +109,8 @@ export class MapScene extends Phaser.Scene {
     }
 
     redimensionarCena(tamanhoJogo) {
+
+        
         if (this.bg) {
             this.bg.setDisplaySize(tamanhoJogo.width, tamanhoJogo.height);
         }
