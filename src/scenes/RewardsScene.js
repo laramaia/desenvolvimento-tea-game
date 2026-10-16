@@ -93,10 +93,7 @@ export class RewardsScene extends Phaser.Scene {
 
         this.atualizarMoedas();
     }
-
-    // ---------- Contorno visível (sem transparência) de cada PNG ----------
-    // x1 e y1 são exclusivos (primeiro pixel fora do contorno).
-
+    
     obterBBox(chave) {
         if (this.bboxCache[chave]) return this.bboxCache[chave];
         if (!this.textures.exists(chave)) return null;
@@ -131,8 +128,6 @@ export class RewardsScene extends Phaser.Scene {
         this.bboxCache[chave] = bbox;
         return bbox;
     }
-
-    // Gera o ícone de cada card recortando o espaço transparente da peça.
     gerarIcones() {
         CATEGORIAS.forEach((cat) => {
             cat.itens.forEach((item) => {
@@ -153,8 +148,6 @@ export class RewardsScene extends Phaser.Scene {
             });
         });
     }
-
-    // ---------- Interface ----------
 
     criarBotaoVoltar() {
         this.voltarBg = this.add.graphics().setDepth(25).setScrollFactor(0);
@@ -310,9 +303,6 @@ export class RewardsScene extends Phaser.Scene {
         cam.scrollY = Phaser.Math.Clamp(cam.scrollY, 0, this.scrollMax);
     }
 
-    // ---------- Avatar ----------
-
-    // Ajuste da camada = padrão da categoria + ajuste do item (sem o campo 'rosto')
     ajusteDe(catId, itemId) {
         const base = AJUSTES_CAMADAS[catId];
         const cat = CATEGORIAS.find((c) => c.id === catId);
@@ -352,12 +342,10 @@ export class RewardsScene extends Phaser.Scene {
             return;
         }
 
-        // k = tamanho de 1 pixel do PNG do corpo na tela
         const larguraCorpo = corpo.x1 - corpo.x0;
         const alturaCorpo = corpo.y1 - corpo.y0;
         const k = Math.min((w * 0.88) / larguraCorpo, (h * 0.88) / alturaCorpo);
 
-        // Canto superior esquerdo do PNG do corpo na tela (corpo centralizado no painel)
         const origemX = cx - ((corpo.x0 + corpo.x1) / 2) * k;
         const origemY = cy - ((corpo.y0 + corpo.y1) / 2) * k;
 
@@ -371,7 +359,6 @@ export class RewardsScene extends Phaser.Scene {
                 .setScrollFactor(0)
         );
 
-        // Coloca uma peça: o contorno visível dela é ancorado no ponto (a.x, a.y) do corpo
         const colocar = (chave, a) => {
             const b = this.obterBBox(chave);
             if (!b) return;
@@ -401,8 +388,6 @@ export class RewardsScene extends Phaser.Scene {
             colocar(itemId, this.ajusteDe(catId, itemId));
         });
     }
-
-    // ---------- Cards ----------
 
     desenharCard(cat, item, x, y, tam) {
         const possui = AvatarState.possui(this.estado, item);
