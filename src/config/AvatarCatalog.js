@@ -23,7 +23,7 @@ export const CATEGORIAS = [
     {
         id: 'cabelo',
         pasta: 'hair',
-        titulo: 'Cabelo',
+        titulo: 'Cabelos',
         itens: [
             item('hair-01', 0, {rosto: 'face-01' }),
             item('hair-02' , 0, { escala: 1.18, x: 129, y: 25, rosto: 'face-01' }),

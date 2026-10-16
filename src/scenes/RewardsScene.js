@@ -19,6 +19,8 @@ const COR_CARD = 0x5b8de6;
 const COR_CARD_BLOQUEADO = 0x203b6e;
 const COR_SELECIONADO = 0xffffff;
 
+const VISIVEIS_MAX = 5;
+
 export class RewardsScene extends Phaser.Scene {
     constructor() {
         super({ key: 'RewardsScene' });
@@ -31,6 +33,9 @@ export class RewardsScene extends Phaser.Scene {
         this.scrollMax = 0;
         this.encerrada = false;
         this.bboxCache = {};
+        this.indices = {};
+        this.animacao = null;
+        this.tweensEntrada = [];
     }
 
     preload() {
@@ -93,7 +98,7 @@ export class RewardsScene extends Phaser.Scene {
 
         this.atualizarMoedas();
     }
-    
+
     obterBBox(chave) {
         if (this.bboxCache[chave]) return this.bboxCache[chave];
         if (!this.textures.exists(chave)) return null;
@@ -128,6 +133,7 @@ export class RewardsScene extends Phaser.Scene {
         this.bboxCache[chave] = bbox;
         return bbox;
     }
+
     gerarIcones() {
         CATEGORIAS.forEach((cat) => {
             cat.itens.forEach((item) => {
@@ -149,10 +155,12 @@ export class RewardsScene extends Phaser.Scene {
         });
     }
 
+
     criarBotaoVoltar() {
         this.voltarBg = this.add.graphics().setDepth(25).setScrollFactor(0);
 
         this.voltarTxt = this.add.text(0, 0, '‹ Voltar', Theme.textStyles.title)
+            .setScale(0.7)    
             .setOrigin(0.5)
             .setDepth(26)
             .setScrollFactor(0);
@@ -183,7 +191,7 @@ export class RewardsScene extends Phaser.Scene {
         this.tweens.killTweensOf(this.aviso);
         this.aviso
             .setText(mensagem)
-            .setPosition(larguraSidebar + (width - larguraSidebar) / 2, height * 0.92)
+            .setPosition(larguraSidebar + (width - larguraSidebar) / 2, height * 0.95)
             .setAlpha(1);
 
         this.tweens.add({
@@ -255,6 +263,9 @@ export class RewardsScene extends Phaser.Scene {
     }
 
     limparConteudo() {
+        this.tweensEntrada.forEach((t) => t.stop());
+        this.tweensEntrada = [];
+
         this.conteudo.forEach((obj) => obj.destroy());
         this.conteudo = [];
     }
@@ -272,12 +283,27 @@ export class RewardsScene extends Phaser.Scene {
 
         const x0 = painelX + painelW + margem * 1.5;
         const larguraCat = width - margem - x0;
-        const tam = Phaser.Math.Clamp(Math.min(height * 0.2, larguraCat / 6.2), 56, 140);
-        const gap = tam * 0.12;
-        const porLinha = Math.max(1, Math.floor((larguraCat + gap) / (tam + gap)));
-        const fonteTitulo = Math.round(tam * 0.28);
+        const topoY = height * 0.14;
+        const disponivel = height - topoY - margem;
 
-        let y = height * 0.14;
+        const tamPelaAltura = disponivel / (CATEGORIAS.length * 1.7);
+        const tamPelaLargura = larguraCat / 5.5;
+        const tam = Phaser.Math.Clamp(Math.min(tamPelaAltura, tamPelaLargura), 56, 150);
+
+        const gap = tam * 0.12;
+        const larguraSeta = Phaser.Math.Clamp(tam * 0.38, 28, 52);
+        const gapSeta = tam * 0.1;
+
+        const larguraArea = larguraCat - 2 * (larguraSeta + gapSeta);
+        const visiveis = Phaser.Math.Clamp(
+            Math.floor((larguraArea + gap) / (tam + gap)),
+            1,
+            VISIVEIS_MAX
+        );
+
+        const fonteTitulo = Math.round(tam * 0.26);
+
+        let y = topoY;
 
         CATEGORIAS.forEach((cat) => {
             this.registrar(
@@ -288,20 +314,166 @@ export class RewardsScene extends Phaser.Scene {
             );
             y += fonteTitulo * 1.5;
 
-            cat.itens.forEach((item, i) => {
-                const col = i % porLinha;
-                const lin = Math.floor(i / porLinha);
-                this.desenharCard(cat, item, x0 + col * (tam + gap), y + lin * (tam + gap), tam);
-            });
+            this.desenharCarrossel(cat, { x0, y, tam, gap, larguraSeta, gapSeta, visiveis });
 
-            const linhas = Math.ceil(cat.itens.length / porLinha);
-            y += linhas * (tam + gap) + tam * 0.2;
+            y += tam + tam * 0.2 + tam * 0.1;
         });
 
         this.scrollMax = Math.max(0, y + margem - height);
         const cam = this.cameras.main;
         cam.scrollY = Phaser.Math.Clamp(cam.scrollY, 0, this.scrollMax);
     }
+
+    desenharCarrossel(cat, { x0, y, tam, gap, larguraSeta, gapSeta, visiveis }) {
+        const total = cat.itens.length;
+        const maxInicio = Math.max(0, total - visiveis);
+
+        if (this.indices[cat.id] === undefined) {
+            const equipado = Math.max(
+                0,
+                cat.itens.findIndex((i) => i.id === this.estado.equipados[cat.id])
+            );
+            this.indices[cat.id] = Math.floor(equipado / visiveis) * visiveis;
+        }
+
+        const inicio = Phaser.Math.Clamp(this.indices[cat.id], 0, maxInicio);
+        this.indices[cat.id] = inicio;
+
+        const itensX = x0 + larguraSeta + gapSeta;
+        const usado = visiveis * tam + (visiveis - 1) * gap;
+
+        const antes = this.conteudo.length;
+        cat.itens.slice(inicio, inicio + visiveis).forEach((item, i) => {
+            this.desenharCard(cat, item, itensX + i * (tam + gap), y, tam);
+        });
+        const cartoes = this.conteudo.slice(antes);
+
+        if (this.animacao && this.animacao.catId === cat.id) {
+            this.animarEntrada(cartoes, this.animacao.dir * tam * 0.5);
+            this.animacao = null;
+        }
+
+        if (total <= visiveis) return;
+
+        const cyCards = y + tam / 2;
+
+        this.desenharSeta(
+            -1,
+            x0 + larguraSeta / 2,
+            cyCards,
+            larguraSeta,
+            inicio > 0,
+            () => this.mudarPagina(cat, -1, visiveis)
+        );
+
+        this.desenharSeta(
+            1,
+            itensX + usado + gapSeta + larguraSeta / 2,
+            cyCards,
+            larguraSeta,
+            inicio < maxInicio,
+            () => this.mudarPagina(cat, 1, visiveis)
+        );
+
+        this.desenharBolinhas(
+            itensX + usado / 2,
+            y + tam + tam * 0.12,
+            tam,
+            Math.ceil(total / visiveis),
+            inicio >= maxInicio ? Math.ceil(total / visiveis) - 1 : Math.floor(inicio / visiveis)
+        );
+    }
+
+    mudarPagina(cat, dir, visiveis) {
+        const max = Math.max(0, cat.itens.length - visiveis);
+        const atual = this.indices[cat.id] ?? 0;
+        const novo = Phaser.Math.Clamp(atual + dir * visiveis, 0, max);
+        if (novo === atual) return;
+
+        this.indices[cat.id] = novo;
+        this.animacao = { catId: cat.id, dir };
+
+        this.time.delayedCall(0, () => {
+            if (!this.encerrada) this.desenhar();
+        });
+    }
+
+    animarEntrada(objetos, deslocamento) {
+        const basesX = objetos.map((o) => o.x);
+        const alfas = objetos.map((o) => o.alpha);
+
+        objetos.forEach((o, i) => {
+            o.x = basesX[i] + deslocamento;
+            o.setAlpha(0);
+        });
+
+        const progresso = { t: 0 };
+        const tween = this.tweens.add({
+            targets: progresso,
+            t: 1,
+            duration: 240,
+            ease: 'Cubic.easeOut',
+            onUpdate: () => {
+                objetos.forEach((o, i) => {
+                    if (!o.active) return;
+                    o.x = basesX[i] + deslocamento * (1 - progresso.t);
+                    o.setAlpha(alfas[i] * progresso.t);
+                });
+            },
+        });
+        this.tweensEntrada.push(tween);
+    }
+
+    desenharSeta(dir, cx, cy, diametro, ativa, aoClicar) {
+        const r = diametro / 2;
+
+        const g = this.registrar(this.add.graphics().setDepth(9));
+        g.fillStyle(Theme.colors.hex.primary, 0.85);
+        g.fillCircle(cx, cy, r);
+        g.lineStyle(2, Theme.colors.hex.white, 1);
+        g.strokeCircle(cx, cy, r);
+
+        const ponta = cx + dir * r * 0.2;
+        const base = cx - dir * r * 0.15;
+        g.lineStyle(Math.max(2, r * 0.18), Theme.colors.hex.white, 1);
+        g.beginPath();
+        g.moveTo(base, cy - r * 0.4);
+        g.lineTo(ponta, cy);
+        g.lineTo(base, cy + r * 0.4);
+        g.strokePath();
+
+        if (!ativa) {
+            g.setAlpha(0.3);
+            return;
+        }
+
+        const zona = this.registrar(
+            this.add.zone(cx - r, cy - r, diametro, diametro)
+                .setOrigin(0, 0)
+                .setDepth(12)
+                .setInteractive({ useHandCursor: true })
+        );
+        zona.on('pointerdown', aoClicar);
+    }
+
+    desenharBolinhas(cx, cy, tam, quantidade, atual) {
+        const raio = Math.max(4, tam * 0.04);
+        const espaco = raio * 3.6;
+        const inicioX = cx - ((quantidade - 1) * espaco) / 2;
+
+        const g = this.registrar(this.add.graphics().setDepth(9));
+        for (let i = 0; i < quantidade; i++) {
+            const px = inicioX + i * espaco;
+            if (i === atual) {
+                g.fillStyle(Theme.colors.hex.white, 1);
+                g.fillCircle(px, cy, raio);
+            } else {
+                g.lineStyle(2, Theme.colors.hex.white, 0.6);
+                g.strokeCircle(px, cy, raio);
+            }
+        }
+    }
+
 
     ajusteDe(catId, itemId) {
         const base = AJUSTES_CAMADAS[catId];
