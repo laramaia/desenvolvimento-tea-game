@@ -79,4 +79,6 @@ export class AvatarState {
     static moedas(estrelas, estado) {
         return Math.max(0, estrelas * MOEDAS_POR_ESTRELA - this.gasto(estado));
     }
+
+    
 }

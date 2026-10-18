@@ -125,6 +125,9 @@ export const Theme = {
         heightRatio: 0.22,
         hoverMultiplier: 1.05,
     },
+    levelScreen: {
+    bgColor: 0x2f55a2,
+},
 
     hudPanel: {
         bgColor: 0x223D71,
@@ -160,6 +163,13 @@ export const Theme = {
             paddingY: 4,
         },
     },
+
+ optionCard: {
+    bgColor: 0x4f80e1,
+    hoverColor: 0x6a95ef,
+    cornerRadius: 5,
+    fontSizeRatio: 0.29,
+},
 
     toast: {
         iconScale: 0.5,
