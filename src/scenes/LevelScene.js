@@ -6,7 +6,8 @@ import { AvatarState } from '../state/AvatarState';
 import { AvatarView } from '../ui/Avatar/AvatarView';
 import { carregarAssetsAvatar } from '../ui/Avatar/AvatarAssets';
 import { OptionButton } from '../ui/Button/OptionButton';
-
+import SpeechService from '../services/SpeechService'
+import { GameState } from '../state/GameState'
 
 const REF = {
     largura: 772,
@@ -14,7 +15,7 @@ const REF = {
     coluna: { x: 169, w: 246 },
     pergunta: { x: 178, y: 97, fonte: 15, wrap: 270 },
     opcao: { h: 40, gap: 12, fonteRatio: 0.29, distanciaDaPergunta: 15 },
-    avatar: { cx: 510, cy: 190, h: 220, w: 120 }, 
+    avatar: { cx: 510, cy: 190, h: 220, w: 120 },
 };
 
 export class LevelScene extends Phaser.Scene {
@@ -34,6 +35,9 @@ export class LevelScene extends Phaser.Scene {
 
     preload() {
         carregarAssetsAvatar(this);
+        this.load.image('icon-sound-on', '../../../assets/sprites/ui/icons/icon-sound-on.png');
+        this.load.image('icon-sound-off', '../../../assets/sprites/ui/icons/icon-sound-off.png');
+        this.load.image('balao-fala', '../../../assets/sprites/ui/icons/balao-fala.png');
     }
 
     async create() {
@@ -45,16 +49,18 @@ export class LevelScene extends Phaser.Scene {
         }
 
         this.fase = fase;
-
         this.calcularGeometria();
         this.criarBotaoVoltar();
         this.criarAvatar();
+        this.criarBotaoVoz();
+        this.criarBalao();
         this.carregarPerguntaAtual();
-
         this.aoRedimensionar = () => this.layout();
         this.scale.on('resize', this.aoRedimensionar, this);
         this.events.once('shutdown', () => {
             this.scale.off('resize', this.aoRedimensionar, this);
+            SpeechService.stop();
+            this.pararAnimacaoFala();
         });
     }
 
@@ -63,7 +69,6 @@ export class LevelScene extends Phaser.Scene {
         const s = Math.min(width / REF.largura, height / REF.altura);
         const ox = (width - REF.largura * s) / 2;
         const oy = (height - REF.altura * s) / 2;
-
         const X = (v) => ox + v * s;
         const Y = (v) => oy + v * s;
 
@@ -92,7 +97,15 @@ export class LevelScene extends Phaser.Scene {
         const { x, y, w, h } = this.geo.avatar;
         this.avatarView.definirArea(x, y, w, h);
 
-        if (!this.respondido) this.carregarPerguntaAtual();
+        const s = this.geo.s;
+        this.voiceBtn
+            .setPosition(this.scale.gameSize.width - Theme.spacing.xl, Theme.spacing.xl)
+            .setDisplaySize(44 * s, 44 * s);
+
+        this.pararAnimacaoFala();
+        this.posicionarBalao();
+
+        if (!this.respondido) this.carregarPerguntaAtual({ falar: false });
     }
 
 
@@ -103,8 +116,7 @@ export class LevelScene extends Phaser.Scene {
             .definirArea(x, y, w, h);
     }
 
-
-    carregarPerguntaAtual() {
+    carregarPerguntaAtual({ falar = true } = {}) {
         this.elementosTela.forEach((el) => el.destroy());
         this.elementosTela = [];
         this.botoesOpcoes = [];
@@ -139,6 +151,11 @@ export class LevelScene extends Phaser.Scene {
         });
 
         this.yFimOpcoes = y;
+
+        if (falar && GameState.settings.autoReadQuestion) {
+            this.time.delayedCall(400, () => this.lerPerguntaCompleta());
+        }
+
     }
 
     selecionarOpcao(opcao, btn) {
@@ -146,6 +163,8 @@ export class LevelScene extends Phaser.Scene {
         this.respondido = true;
 
         const ehCorreta = opcao.ehCorreta ?? opcao.EhCorreta;
+        this.fimDaFala();
+        SpeechService.speak(ehCorreta ? 'Resposta correta!' : 'Resposta incorreta. Tente de novo.');
 
         btn.marcar(ehCorreta);
         this.botoesOpcoes.forEach((b) => b.bloquear());
@@ -190,5 +209,102 @@ export class LevelScene extends Phaser.Scene {
             .setInteractive({ useHandCursor: true });
 
         btnVoltar.on('pointerdown', () => this.scene.start('MapScene'));
+    }
+
+    criarBotaoVoz() {
+        const { width } = this.scale.gameSize;
+        const tam = 44 * this.geo.s;
+        const chave = GameState.settings.voiceEnabled ? 'icon-sound-on' : 'icon-sound-off';
+        this.voiceBtn = this.add.image(width - Theme.spacing.xl, Theme.spacing.xl, chave)
+            .setOrigin(1, 0)
+            .setDisplaySize(tam, tam)
+            .setDepth(10)
+            .setInteractive({ useHandCursor: true });
+        this.voiceBtn.on('pointerdown', () => this.alternarVoz());
+    }
+
+    alternarVoz() {
+        const ativo = !GameState.settings.voiceEnabled;
+        GameState.updateSettings({ voiceEnabled: ativo });
+        SpeechService.setEnabled(ativo);
+        this.voiceBtn.setTexture(ativo ? 'icon-sound-on' : 'icon-sound-off');
+        if (!ativo) this.fimDaFala();
+    }
+
+    criarIconeOuvir(x, y, texto) {
+        const tam = 32 * this.geo.s;
+        const icone = this.add.image(x, y, 'icon-sound-on')
+            .setDisplaySize(tam, tam)
+            .setDepth(10)
+            .setInteractive({ useHandCursor: true });
+
+        icone.on('pointerdown', () => SpeechService.speak(texto));
+        this.elementosTela.push(icone);
+        return icone;
+    }
+
+    criarBalao() {
+        this.balao = this.add.image(0, 0, 'balao-fala')
+            .setOrigin(0.5, 1)
+            .setDepth(12)
+            .setInteractive({ useHandCursor: true });
+
+        this.balao.on('pointerdown', () => {
+            if (!GameState.settings.voiceEnabled) this.alternarVoz();
+            this.lerPerguntaCompleta();
+        });
+
+        this.posicionarBalao();
+    }
+
+    posicionarBalao() {
+        const s = this.geo.s;
+        const { x, y, w } = this.geo.avatar;
+
+        const largura = 64 * s;  
+        this.balaoEscala = largura / this.balao.width;
+        this.balao.setScale(this.balaoEscala);
+        this.balao.setPosition(x + w / 2 + 34 * s, y + 4 * s);
+    }
+
+    lerPerguntaCompleta() {
+        const p = this.fase.perguntas[this.currentPerguntaIndex];
+        const itens = [
+            { text: p.enunciado, onStart: () => { this.destacar(-1); this.iniciarAnimacaoFala(); } },
+            ...(p.opcoes || []).map((o, i) => ({
+                text: o.texto ?? o.Texto,
+                onStart: () => this.destacar(i),
+            })),
+        ];
+
+        SpeechService.speakSequence(itens, { onEnd: () => this.fimDaFala() });
+    }
+
+    destacar(indice) {
+        this.botoesOpcoes.forEach((b, i) => b.setDestaque?.(i === indice));
+    }
+
+    fimDaFala() {
+        this.destacar(-1);
+        this.pararAnimacaoFala();
+    }
+
+    iniciarAnimacaoFala() {
+        if (GameState.settings.reduceMotion || !this.balao) return;
+        this.pararAnimacaoFala();
+        this.tweenFala = this.tweens.add({
+            targets: this.balao,
+            scale: this.balaoEscala * 1.04,
+            duration: 600,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+        });
+    }
+
+    pararAnimacaoFala() {
+        this.tweenFala?.stop();
+        this.tweenFala = null;
+        this.balao?.setScale(this.balaoEscala);
     }
 }

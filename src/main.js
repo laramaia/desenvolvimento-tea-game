@@ -5,9 +5,12 @@ import { LevelScene } from './scenes/LevelScene';
 import { GameState } from './state/GameState';
 import { Theme } from './config/Theme';
 import { RewardsScene } from './scenes/RewardsScene';
+import SpeechService from './services/SpeechService';
 
 
 GameState.init();
+SpeechService.setEnabled(GameState.settings.voiceEnabled);
+SpeechService.rate = GameState.settings.voiceRate;
 
 document.querySelector('#app').innerHTML = `
   <div id="game-container"></div>
