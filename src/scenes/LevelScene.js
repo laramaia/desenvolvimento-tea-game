@@ -8,6 +8,8 @@ import { carregarAssetsAvatar } from '../ui/Avatar/AvatarAssets';
 import { OptionButton } from '../ui/Button/OptionButton';
 import SpeechService from '../services/SpeechService'
 import { GameState } from '../state/GameState'
+import { LevelManager } from '../managers/LevelManager';
+import { SpeechBubble } from '../ui/SpeechBubble';
 
 const REF = {
     largura: 772,
@@ -25,7 +27,7 @@ export class LevelScene extends Phaser.Scene {
 
     init(data) {
         this.levelId = data.levelId;
-        this.currentPerguntaIndex = 0;
+        this.manager = null;
         this.respondido = false;
         this.botoesOpcoes = [];
         this.elementosTela = [];
@@ -42,13 +44,13 @@ export class LevelScene extends Phaser.Scene {
 
     async create() {
         const fase = await LevelService.getFaseById(this.levelId);
-
-        if (!fase || !fase.perguntas || fase.perguntas.length === 0) {
+        const manager = new LevelManager(fase);
+        if (manager.total === 0) {
             new ErrorToast(this, 'Erro ao carregar as perguntas da fase. Tente novamente.');
             return;
         }
 
-        this.fase = fase;
+        this.manager = manager;
         this.calcularGeometria();
         this.criarBotaoVoltar();
         this.criarAvatar();
@@ -60,7 +62,7 @@ export class LevelScene extends Phaser.Scene {
         this.events.once('shutdown', () => {
             this.scale.off('resize', this.aoRedimensionar, this);
             SpeechService.stop();
-            this.pararAnimacaoFala();
+            this.balao?.parar();
         });
     }
 
@@ -71,7 +73,6 @@ export class LevelScene extends Phaser.Scene {
         const oy = (height - REF.altura * s) / 2;
         const X = (v) => ox + v * s;
         const Y = (v) => oy + v * s;
-
         this.geo = {
             s,
             colunaX: X(REF.coluna.x),
@@ -96,18 +97,14 @@ export class LevelScene extends Phaser.Scene {
         this.calcularGeometria();
         const { x, y, w, h } = this.geo.avatar;
         this.avatarView.definirArea(x, y, w, h);
-
         const s = this.geo.s;
         this.voiceBtn
             .setPosition(this.scale.gameSize.width - Theme.spacing.xl, Theme.spacing.xl)
             .setDisplaySize(44 * s, 44 * s);
-
-        this.pararAnimacaoFala();
         this.posicionarBalao();
 
         if (!this.respondido) this.carregarPerguntaAtual({ falar: false });
     }
-
 
     criarAvatar() {
         const { x, y, w, h } = this.geo.avatar;
@@ -123,8 +120,7 @@ export class LevelScene extends Phaser.Scene {
         this.respondido = false;
 
         const g = this.geo;
-        const pergunta = this.fase.perguntas[this.currentPerguntaIndex];
-
+        const pergunta = this.manager.perguntaAtual;
         const txtEnunciado = this.add.text(g.perguntaX, g.perguntaY, pergunta.enunciado, {
             ...Theme.textStyles.title,
             fontFamily: Theme.fonts.family,
@@ -137,7 +133,7 @@ export class LevelScene extends Phaser.Scene {
         let y = g.perguntaY + txtEnunciado.height + g.distancia;
 
         this.botoesOpcoes = (pergunta.opcoes || []).map((opcao) => {
-            const btn = new OptionButton(this, opcao.texto ?? opcao.Texto, {
+            const btn = new OptionButton(this, opcao.texto, {
                 largura: g.colunaW,
                 altura: g.altOpcao,
                 aoClicar: () => this.selecionarOpcao(opcao, btn),
@@ -162,18 +158,18 @@ export class LevelScene extends Phaser.Scene {
         if (this.respondido) return;
         this.respondido = true;
 
-        const ehCorreta = opcao.ehCorreta ?? opcao.EhCorreta;
+        const { correta, concluida } = this.manager.responder(opcao);
         this.fimDaFala();
-        SpeechService.speak(ehCorreta ? 'Resposta correta!' : 'Resposta incorreta. Tente de novo.');
+        SpeechService.speak(correta ? 'Resposta correta!' : 'Resposta incorreta. Tente de novo.');
 
-        btn.marcar(ehCorreta);
+        btn.marcar(correta);
         this.botoesOpcoes.forEach((b) => b.bloquear());
 
-        const style = ehCorreta ? Theme.textStyles.feedbackSuccess : Theme.textStyles.feedbackError;
+        const style = correta ? Theme.textStyles.feedbackSuccess : Theme.textStyles.feedbackError;
         const txtFeedback = this.add.text(
             this.geo.colunaX,
             this.yFimOpcoes,
-            ehCorreta ? 'Resposta correta!' : 'Resposta incorreta.',
+            correta ? 'Resposta correta!' : 'Resposta incorreta.',
             {
                 ...style,
                 fontFamily: Theme.fonts.family,
@@ -184,17 +180,13 @@ export class LevelScene extends Phaser.Scene {
         this.elementosTela.push(txtFeedback);
 
         this.time.delayedCall(1500, () => {
-            if (ehCorreta) {
-                if (this.currentPerguntaIndex < this.fase.perguntas.length - 1) {
-                    this.currentPerguntaIndex++;
-                    this.carregarPerguntaAtual();
-                } else {
-                    LevelService.finalizarFase(this.levelId, 3);
-                    this.scene.start('MapScene');
-                }
-            } else {
-                this.carregarPerguntaAtual();
+            if (concluida) {
+                LevelService.finalizarFase(this.levelId, 3);
+                this.scene.start('MapScene');
+                return;
             }
+            if (correta) this.manager.avancar();
+            this.carregarPerguntaAtual();
         });
     }
 
@@ -231,48 +223,28 @@ export class LevelScene extends Phaser.Scene {
         if (!ativo) this.fimDaFala();
     }
 
-    criarIconeOuvir(x, y, texto) {
-        const tam = 32 * this.geo.s;
-        const icone = this.add.image(x, y, 'icon-sound-on')
-            .setDisplaySize(tam, tam)
-            .setDepth(10)
-            .setInteractive({ useHandCursor: true });
-
-        icone.on('pointerdown', () => SpeechService.speak(texto));
-        this.elementosTela.push(icone);
-        return icone;
-    }
-
     criarBalao() {
-        this.balao = this.add.image(0, 0, 'balao-fala')
-            .setOrigin(0.5, 1)
-            .setDepth(12)
-            .setInteractive({ useHandCursor: true });
-
-        this.balao.on('pointerdown', () => {
-            if (!GameState.settings.voiceEnabled) this.alternarVoz();
-            this.lerPerguntaCompleta();
+        this.balao = new SpeechBubble(this, {
+            aoTocar: () => {
+                if (!GameState.settings.voiceEnabled) this.alternarVoz();
+                this.lerPerguntaCompleta();
+            },
         });
-
         this.posicionarBalao();
     }
 
     posicionarBalao() {
         const s = this.geo.s;
         const { x, y, w } = this.geo.avatar;
-
-        const largura = 64 * s;  
-        this.balaoEscala = largura / this.balao.width;
-        this.balao.setScale(this.balaoEscala);
-        this.balao.setPosition(x + w / 2 + 34 * s, y + 4 * s);
+        this.balao.posicionar(x + w / 2 + 34 * s, y + 4 * s, 64 * s);
     }
 
     lerPerguntaCompleta() {
-        const p = this.fase.perguntas[this.currentPerguntaIndex];
+        const p = this.manager.perguntaAtual;
         const itens = [
-            { text: p.enunciado, onStart: () => { this.destacar(-1); this.iniciarAnimacaoFala(); } },
+            { text: p.enunciado, onStart: () => { this.destacar(-1); this.balao.iniciar(); } },
             ...(p.opcoes || []).map((o, i) => ({
-                text: o.texto ?? o.Texto,
+                text: o.texto,
                 onStart: () => this.destacar(i),
             })),
         ];
@@ -286,25 +258,6 @@ export class LevelScene extends Phaser.Scene {
 
     fimDaFala() {
         this.destacar(-1);
-        this.pararAnimacaoFala();
-    }
-
-    iniciarAnimacaoFala() {
-        if (GameState.settings.reduceMotion || !this.balao) return;
-        this.pararAnimacaoFala();
-        this.tweenFala = this.tweens.add({
-            targets: this.balao,
-            scale: this.balaoEscala * 1.04,
-            duration: 600,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut',
-        });
-    }
-
-    pararAnimacaoFala() {
-        this.tweenFala?.stop();
-        this.tweenFala = null;
-        this.balao?.setScale(this.balaoEscala);
+        this.balao?.parar();
     }
 }
